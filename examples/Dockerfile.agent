@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY examples/ollama_agent.py /app/ollama_agent.py
+
+RUN pip install --no-cache-dir httpx
+
+CMD ["python", "/app/ollama_agent.py"]

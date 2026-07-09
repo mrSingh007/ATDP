@@ -1,0 +1,55 @@
+services:
+  atdp-proxy:
+    build:
+      context: .
+    ports:
+      - "8080:8080"
+    environment:
+      ATDP_PROVIDER: openai-compatible
+      ATDP_UPSTREAM_BASE_URL: ${ATDP_UPSTREAM_BASE_URL:-http://host.docker.internal:11434/v1}
+      ATDP_UPSTREAM_API_KEY: ${ATDP_UPSTREAM_API_KEY:-}
+      ATDP_FORWARD_AUTHORIZATION: ${ATDP_FORWARD_AUTHORIZATION:-false}
+      ATDP_DATA_DIR: /data
+      ATDP_REQUEST_TIMEOUT_SECONDS: ${ATDP_REQUEST_TIMEOUT_SECONDS:-120}
+      ATDP_DEFAULT_TENANT_ID: ${ATDP_DEFAULT_TENANT_ID:-default}
+      ATDP_REDACTION_MODE: ${ATDP_REDACTION_MODE:-basic}
+      ATDP_OTEL_ENABLED: ${ATDP_OTEL_ENABLED:-false}
+      ATDP_OTEL_SERVICE_NAME: atdp-data-proxy
+      ATDP_OTEL_EXPORTER_OTLP_ENDPOINT: ${ATDP_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  example-agent:
+    profiles: ["agent"]
+    build:
+      context: .
+      dockerfile: examples/Dockerfile.agent
+    environment:
+      ATDP_BASE_URL: http://atdp-proxy:8080/v1
+      ATDP_MODEL: ${ATDP_MODEL:-llama3.2:1b}
+      ATDP_AGENT_PROMPT: ${ATDP_AGENT_PROMPT:-Explain ATDP in two practical sentences.}
+    depends_on:
+      atdp-proxy:
+        condition: service_healthy
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"

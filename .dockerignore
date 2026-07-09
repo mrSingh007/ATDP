@@ -1,0 +1,10 @@
+.venv
+__pycache__
+.pytest_cache
+data
+*.db
+*.sqlite
+*.pyc
+.DS_Store
+atdp.pdf
+atdp.01120v2.pdf
