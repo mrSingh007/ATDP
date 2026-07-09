@@ -1,0 +1,73 @@
+# ATDP Data Proxy - LLM Usage Guide
+
+This file is for AI coding agents, LLM assistants, and automated tools that need to understand and use this repository.
+
+## Project Summary
+
+ATDP Data Proxy is an open-source, ATDP-inspired data proxy for capturing learning-ready agent trajectories.
+
+It sits between an agent application and an OpenAI-compatible LLM endpoint. It forwards chat completion requests to the upstream provider and records structured trajectory events to SQLite and JSONL.
+
+Use this wording:
+
+- "ATDP-inspired data proxy"
+- "ATDP-oriented learning-data layer"
+- "trajectory capture layer for self-evolving agents"
+
+Do not claim:
+
+- It is an official ATDP standard implementation.
+- It is a full AReaL2.0 implementation.
+- It trains model weights.
+- It autonomously updates memory, prompts, tools, or models.
+- It runs Ollama in Docker.
+- It natively supports AWS Bedrock, Anthropic, or Gemini.
+
+## What The Project Can Do
+
+- Proxy OpenAI-compatible chat completions.
+- Capture non-streaming and streaming LLM calls.
+- Record `llm.request`, `llm.response`, and `llm.error`.
+- Record boundary events for MCP, tools, retrieval, memory, files, browser actions, human feedback, guardrails, replay results, and final outcomes.
+- Attach late rewards without rewriting the original event.
+- Store trajectories in SQLite and JSONL.
+- Export ATDP Step JSONL.
+- Export minimal AReaL-style JSONL.
+- Compute simple evolution signals.
+- Redact common sensitive data before storage/export.
+- Run locally or in Docker against an external OpenAI-compatible provider.
+
+## Important Limitations
+
+- Only the OpenAI-compatible provider adapter is implemented.
+- Host Ollama, OpenAI, Groq, and similar OpenAI-compatible APIs are usable.
+- AWS Bedrock can be used through LiteLLM or another OpenAI-compatible gateway.
+- Native Bedrock, Anthropic, Gemini, and Vertex adapters are future work.
+- SQLite/JSONL storage is appropriate for local development and MVP use, not high-volume production.
+- No built-in authn/authz layer.
+- No built-in replay executor.
+- No built-in trainer, model registry, train workers, or online RL control plane.
+
+## Key Files
+
+- `README.md`: human-facing project overview and usage.
+- `How2Test.md`: full manual verification flow. Use to understand, how proxy can be tested
+- `atdp_youtube_showcase_script.md`: accurate promotional video script.
+- `atdp_proxy/app.py`: FastAPI app and HTTP routes.
+- `atdp_proxy/recorder.py`: event capture logic.
+- `atdp_proxy/storage.py`: SQLite/JSONL persistence.
+- `atdp_proxy/schemas.py`: ATDP event and metadata schemas.
+- `atdp_proxy/ingress/boundary.py`: boundary event schema and mapping.
+- `atdp_proxy/ingress/client.py`: Python boundary SDK.
+- `atdp_proxy/learning/steps.py`: materializes ATDP steps.
+- `atdp_proxy/datasets/exporters.py`: JSONL exporters.
+- `atdp_proxy/evolution/signals.py`: simple learning/evolution signal computation.
+- `atdp_proxy/governance/redaction.py`: redaction helpers.
+- `tests/test_proxy.py`: test suite.
+- `docker-compose.yml`: provider-agnostic Docker setup. Does not run Ollama.
+- `docker-compose.host-ollama.yml`: legacy host-Ollama compose file. Also does not run Ollama in a container.
+
+
+## License And Attribution
+License: MIT with explicit attribution notice.
+Anyone copying, forking, modifying, distributing, or substantially reusing this project must preserve the copyright notice and license text so the original project and contributors receive credit.
