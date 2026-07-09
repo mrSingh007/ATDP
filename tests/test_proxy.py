@@ -419,6 +419,58 @@ def test_lnl_feedback_generates_memory_write_replay_recommendation(tmp_path):
     assert "replay_needed" in signals["recommendations"]
 
 
+def test_structured_lnl_knowledge_correction_proposes_memory_write_without_writing(tmp_path):
+    client, _provider = make_client(tmp_path)
+
+    chat = client.post(
+        "/v1/chat/completions",
+        headers={"X-ATDP-Session-ID": "session-lnl-structured"},
+        json={"model": "test-model", "messages": [{"role": "user", "content": "What is LNL?"}]},
+    )
+    assert chat.status_code == 200
+    response_event_id = chat.headers["x-atdp-response-event-id"]
+
+    reward_response = client.post(
+        f"/v1/atdp/events/{response_event_id}/reward",
+        json={
+            "value": -1.0,
+            "label": "missing_private_domain_knowledge",
+            "source": "human",
+            "critique": "Model did not know the private company glossary entry.",
+        },
+    )
+    assert reward_response.status_code == 200
+
+    feedback = client.post(
+        "/v1/atdp/boundary-events",
+        headers={"X-ATDP-Session-ID": "session-lnl-structured"},
+        json={
+            "boundary": "human_feedback",
+            "name": "user_correction",
+            "parent_event_id": response_event_id,
+            "output": {
+                "feedback_type": "knowledge_correction",
+                "suggested_intervention": "memory_write",
+                "correction": "LNL means Lorem Norway Limited, a company.",
+            },
+        },
+    )
+    assert feedback.status_code == 200
+
+    trajectory = client.get("/v1/atdp/sessions/session-lnl-structured/trajectory").json()
+    event_types = [event["type"] for event in trajectory["events"]]
+    assert "human.feedback" in event_types
+    assert "memory.write" not in event_types
+
+    signals = client.get("/v1/atdp/evolution/signals?session_id=session-lnl-structured").json()
+    assert signals["memory_miss_patterns"] == {"LNL=Lorem Norway Limited, a company": 1}
+    assert "missing_domain_knowledge" in signals["recommendations"]
+    assert "memory_write_proposal" in signals["recommendations"]
+    assert "replay_needed" in signals["recommendations"]
+    assert "replay_gap" in signals["recommendations"]
+    assert "candidate_training_slice" in signals["recommendations"]
+
+
 def test_dataset_step_ids_are_stable_and_reward_eligibility_is_honored(tmp_path):
     client, _provider = make_client(tmp_path)
 

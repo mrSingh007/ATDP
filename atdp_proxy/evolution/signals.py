@@ -30,6 +30,9 @@ class EvolutionSignals(BaseModel):
 CORRECTION_RE = re.compile(
     r"(?i)\b(?:wrong|incorrect|correction|actually)\b.*?\b([A-Z][A-Z0-9_-]{1,20})\s+(?:means|is|=)\s+([^.;\n]+)"
 )
+STRUCTURED_CORRECTION_RE = re.compile(
+    r"(?i)^\s*([A-Z][A-Z0-9_-]{1,20})\s+(?:means|is|=)\s+(.+?)\s*$"
+)
 
 
 def _string_values(value: Any) -> list[str]:
@@ -48,15 +51,59 @@ def _string_values(value: Any) -> list[str]:
     return []
 
 
+def _latest_reward_value(event: ATDPEvent) -> float | None:
+    reward = event.latest_reward or event.reward
+    return reward.value if reward else None
+
+
+def _is_negative_parent_response(event: ATDPEvent | None) -> bool:
+    if event is None or event.type != "llm.response":
+        return False
+    value = _latest_reward_value(event)
+    return value is not None and value < 0
+
+
+def _structured_correction(output: Any) -> tuple[str, str] | None:
+    if not isinstance(output, dict):
+        return None
+    if output.get("feedback_type") != "knowledge_correction":
+        return None
+    if output.get("suggested_intervention") not in (None, "memory_write", "memory_write_proposal"):
+        return None
+    correction = output.get("correction")
+    if not isinstance(correction, str):
+        return None
+    match = STRUCTURED_CORRECTION_RE.match(correction)
+    if match is None:
+        return None
+    key = match.group(1).strip()
+    value = match.group(2).strip().rstrip(".;")
+    if not key or not value:
+        return None
+    return key, value
+
+
+def _text_corrections(value: Any) -> list[tuple[str, str]]:
+    corrections: list[tuple[str, str]] = []
+    text = "\n".join(_string_values(value))
+    for match in CORRECTION_RE.finditer(text):
+        corrections.append((match.group(1).strip(), match.group(2).strip().rstrip(".;")))
+    return corrections
+
+
 def _human_corrections(events: list[ATDPEvent]) -> Counter[str]:
     corrections: Counter[str] = Counter()
+    events_by_id = {event.id: event for event in events}
     for event in events:
         if event.type != "human.feedback":
             continue
-        text = "\n".join(_string_values(event.observation) + _string_values(event.outcome))
-        for match in CORRECTION_RE.finditer(text):
-            key = match.group(1).strip()
-            value = match.group(2).strip()
+        parent = events_by_id.get(event.parent_event_id or "")
+        if event.parent_event_id and not _is_negative_parent_response(parent):
+            continue
+
+        structured = _structured_correction(event.outcome.get("output"))
+        correction_pairs = [structured] if structured else _text_corrections([event.observation, event.outcome])
+        for key, value in correction_pairs:
             corrections[f"{key}={value}"] += 1
     return corrections
 
@@ -98,7 +145,9 @@ def compute_evolution_signals(events: list[ATDPEvent], steps: list[ATDPStep]) ->
     if retrieval_failures:
         recommendations.append("retrieval_review")
     if memory_misses:
-        recommendations.extend(["missing_domain_knowledge", "memory_write", "replay_needed"])
+        recommendations.extend(
+            ["missing_domain_knowledge", "memory_write", "memory_write_proposal", "replay_needed"]
+        )
     if replay_gap_count:
         recommendations.append("replay_gap")
     if candidate_training_slices:

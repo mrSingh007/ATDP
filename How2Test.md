@@ -2,11 +2,7 @@
 
 This guide tests the ATDP Learning Infrastructure MVP end to end: proxying, streaming, boundary capture, rewards, redaction, dataset generation, evolution signals, and persistence.
 
-Run commands from the repo root:
-
-```bash
-cd /Users/harvindersingh/Desktop/temp/atdp
-```
+Go to ATDP project repo and following this instructions
 
 ## 1. Prerequisites
 
